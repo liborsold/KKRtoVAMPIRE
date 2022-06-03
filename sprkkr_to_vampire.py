@@ -1,0 +1,1 @@
+"""Convert the SPR-KKR exchange interactions to vampire."""
