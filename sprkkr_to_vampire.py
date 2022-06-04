@@ -1,29 +1,40 @@
-"""Convert the SPR-KKR exchange interactions to vampire."""
+"""Convert the SPR-KKR exchange interactions to vampire.
+    Needed are the seedname.sys, seedname_SCF.out, seedname_JXC_XCPLTEN_Jij.dat and seedname_JXC_XCPLTEN_Dij.dat files."""
 
 import pandas as pd
 import numpy as np
+
+
+import sys
+# insert at 1, 0 is the script path (or '' in REPL)
+sys.path.insert(1, '../ucf_crop_small_values_vampire')
+from ucf_crop_small_values_vampire import ucf_crop
 
 
 
 # ========================== USER INPUT =============================
 
 # SPR-KKR calculation directory
-path = "H:/2D/Cr2Te3/bulk/sprkkr_imitating_experimental/Bi2Te3" #"H:/2D/Cr2Te3/bulk/transport/PBE/NKTAB_1000"
+path = "H:/2D/Cr2Te3/bulk/sprkkr_imitating_experimental/Gr" #"H:/2D/Cr2Te3/bulk/transport/PBE/NKTAB_1000"
 
 # the seed name in SPR-KKR (the name of the system)
 system_name = "POSCAR"
 
-include_dmi = True
+include_dmi = False
 f_electrons = False
 
+crop_threshold = 0.1    # meV; set value > 0 to perform the crop post-processing (via the ucf_crop_small_values_vampire.py script; creates a new file)
+
 # ===================================================================
+
+
 
 def write_mat_file(path, system_name, mag_moments, elements):
     """Write the .mat file for vampire, given the magnetic moments and types of elements."""
     if len(mag_moments) != len(elements):
         raise ValueError("elements and mag_moments arrays need to be of the same length!")
 
-    path_in = f"{path}/{system_name}.mat"
+    path_in = f"{path}/vampire.mat"
 
     with open(path_in, 'w') as fw:
         fw.write(f"material:num-materials = {len(elements)}\n")
@@ -43,6 +54,7 @@ def write_mat_file(path, system_name, mag_moments, elements):
                          "#---------------------------------------------------\n"
                        )
             )
+    print(".mat file written")
 
 
 def get_mag_moments(path, system_name, n_atoms, f_electrons=False):
@@ -67,6 +79,7 @@ def get_mag_moments(path, system_name, n_atoms, f_electrons=False):
                 skipped_lines = 0
                 IT_flag = False
 
+    print("mag_moments obtained")
     return mag_moments[-n_atoms:]
 
 
@@ -131,6 +144,7 @@ def get_structure_from_sys_sprkkr(path, system_name):
     basis_arr[:,0] = np.array(range(n_atoms))
     basis_arr[:,4] = np.array(range(n_atoms))
 
+    print(".sys file parsed")
     return n_atoms, primit_arr, basis_arr, elements_arr
 
             
@@ -138,14 +152,14 @@ def get_structure_from_sys_sprkkr(path, system_name):
 def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True):
     """Convert exchange and DMI from SPR-KKR into VAMPIRE UCF file."""
 
-    eV = 1.602e-19  #J
+    meV = 1.602e-22  #J
 
     # SPR-KKR J and DMI .dat files in
     f_exchange_in = f"{path}/{system_name}_JXC_XCPLTEN_Jij.dat"
     f_dmi_in      = f"{path}/{system_name}_JXC_XCPLTEN_Dij.dat"
 
     # UCF file out
-    fout = f"{path}/vampire.UCF_from_{system_name}"
+    fout = f"{path}/vampire.UCF"
 
     # get the structure data from .sys file
     n_atoms, primit_arr, basis_arr, elements_arr = get_structure_from_sys_sprkkr(path, system_name)
@@ -155,7 +169,6 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True):
     write_mat_file(path, system_name, mag_moments, elements_arr)
 
     print(elements_arr)
-    print('check')
     #with open(f_exchange_in, 'r') as fr:
     df = pd.read_csv(f_exchange_in, skiprows=9+n_atoms, delim_whitespace=True, names= ['IT', 'IQ', 'JT', 'JQ', 'N1', 'N2', 'N3', 'DRX', 'DRY', 'DRZ', 'DR', 'J_xx', 'J_yy', 'J_xy', 'J_yx'] )
     df.drop(['IQ','JQ', 'J_yy', 'J_xy', 'J_yx', 'DRX', 'DRY', 'DRZ', 'DR'], axis=1, inplace=True)
@@ -163,33 +176,34 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True):
     # indexing from 0 instead of 1 for VAMPIRE
     df['IT'] = df['IT']-1
     df['JT'] = df['JT']-1
-    print('check2')
     # make a tensor with zeros
     df.rename(columns={'J_xx':'J_11'}, inplace=True)
     df[['J_12', 'J_13', 'J_21', 'J_22', 'J_23', 'J_31', 'J_32', 'J_33']] = 0
 
     # ----- SET THE HEISENBERG MATRIX VALUES -----
-    print('check3')
-    df['J_11'] = df['J_11'] * eV
+    df['J_11'] = df['J_11'] * meV
     df['J_22'] = df['J_11']
     df['J_33'] = df['J_11']
+    print("new matrix columns created")
 
     if include_dmi == True:
             df_dmi = pd.read_csv(f_dmi_in, skiprows=12+n_atoms, delim_whitespace=True, names= ['IT', 'IQ', 'JT', 'JQ', 'N1', 'N2', 'N3', 'DRX', 'DRY', 'DRZ', 'DR', 'DX', 'DY', 'DZ'] )
             print('check4')
             # see e.g. Coey for definition of DMI -> DMI tensor components ( (0, -Dz, Dy), (Dz, 0, -Dx), (-Dy, Dx, 0) )
-            df['J_12'] += -df_dmi['DZ'] * eV
-            df['J_13'] += df_dmi['DY'] * eV
-            df['J_21'] += df_dmi['DZ'] * eV
-            df['J_23'] += -df_dmi['DX'] * eV
-            df['J_31'] += -df_dmi['DY'] * eV
-            df['J_32'] += df_dmi['DX'] * eV
+            df['J_12'] += -df_dmi['DZ'] * meV
+            df['J_13'] += df_dmi['DY'] * meV
+            df['J_21'] += df_dmi['DZ'] * meV
+            df['J_23'] += -df_dmi['DX'] * meV
+            df['J_31'] += -df_dmi['DY'] * meV
+            df['J_32'] += df_dmi['DX'] * meV
+            print("DMI included")
 
     # --------------------------------------------
 
     df.sort_values(by=['IT', 'JT', 'N1', 'N2', 'N3'], inplace=True)
     df.reset_index(inplace=True)
     df.drop(labels='index', axis=1, inplace=True)
+    print("datafield cleaned and sorted")
 
     # save to UCF file
     with open(fout, 'w') as fwrite:
@@ -200,6 +214,11 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True):
         np.savetxt(fwrite, basis_arr, fmt='%d %.6f %.6f %.6f %d', delimiter=' ')
         fwrite.write(f"# Interactions\n{df.shape[0]} tensorial\n")
         df.to_csv(fwrite, mode='w', header=False, sep=" ", line_terminator='\n')
+    print(".UCF file written")
+
+
+    if crop_threshold > 0:
+        ucf_crop(path+'/vampire.UCF', n_atoms+10, crop_threshold, save_file=True)
 
 
 def main():
