@@ -1,5 +1,6 @@
 """Convert the SPR-KKR exchange interactions to vampire.
-    Needed are the seedname.sys, seedname_SCF.out, seedname_JXC_XCPLTEN_Jij.dat and seedname_JXC_XCPLTEN_Dij.dat files."""
+    Needed are the files: seedname.sys, seedname_SCF.out, seedname_JXC_XCPLTEN_Jij.dat and seedname_JXC_XCPLTEN_Dij.dat.
+    Specify if DMI should be included, if f-electrons are present (for parsing) and if the interactions should be croppped."""
 
 import pandas as pd
 import numpy as np
@@ -15,19 +16,35 @@ from ucf_crop_small_values_vampire import ucf_crop
 # ========================== USER INPUT =============================
 
 # SPR-KKR calculation directory
-path = "H:/2D/Cr2Te3/bulk/sprkkr_imitating_experimental/Gr" #"H:/2D/Cr2Te3/bulk/transport/PBE/NKTAB_1000"
-
+path = "H:/2D/Cr2Te3/bulk/sprkkr_imitating_experimental/Bi2Te3"   #"H:/2D/Cr2Te3/bulk/sprkkr/PBE/NKTAB_1000" #
 # the seed name in SPR-KKR (the name of the system)
-system_name = "POSCAR"
+system_name = "Cr2Te3"
 
-include_dmi = False
+include_dmi = True
 f_electrons = False
 
 crop_threshold = 0.1    # meV; set value > 0 to perform the crop post-processing (via the ucf_crop_small_values_vampire.py script; creates a new file)
 
 # ===================================================================
 
+def get_latt_params_for_input_file(path, system_name):
+    """Write part of the 'input' file for VAMPIRE containing the lattice parametres."""
+    fread = f"{path}/{system_name}.sys"
+    fwrite = f"{path}/input_latt-params"
+    with open(fread, 'r') as fr:
+        latt_params_flag = False
+        for line in fr:
+            if latt_params_flag == True:
+                latt_params = np.array(line.split(), dtype=float) * 0.529177  # a.u. to Angstrom
+                break
 
+            if "lattice parameters  a b c" in line:
+                latt_params_flag = True
+        
+    with open(fwrite, 'w') as fw:
+        fw.write(f"dimensions:unit-cell-size-x = {latt_params[0]:.12f}\n")
+        fw.write(f"dimensions:unit-cell-size-y = {latt_params[1]:.12f}\n")
+        fw.write(f"dimensions:unit-cell-size-z = {latt_params[2]:.12f}\n")
 
 def write_mat_file(path, system_name, mag_moments, elements):
     """Write the .mat file for vampire, given the magnetic moments and types of elements."""
@@ -168,6 +185,9 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True):
     mag_moments = get_mag_moments(path, system_name, n_atoms, f_electrons=f_electrons)
     write_mat_file(path, system_name, mag_moments, elements_arr)
 
+    # write the input file with the correct lattice parameters
+    get_latt_params_for_input_file(path, system_name)
+
     print(elements_arr)
     #with open(f_exchange_in, 'r') as fr:
     df = pd.read_csv(f_exchange_in, skiprows=9+n_atoms, delim_whitespace=True, names= ['IT', 'IQ', 'JT', 'JQ', 'N1', 'N2', 'N3', 'DRX', 'DRY', 'DRZ', 'DR', 'J_xx', 'J_yy', 'J_xy', 'J_yx'] )
@@ -184,11 +204,10 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True):
     df['J_11'] = df['J_11'] * meV
     df['J_22'] = df['J_11']
     df['J_33'] = df['J_11']
-    print("new matrix columns created")
+    print("all matrix columns created")
 
     if include_dmi == True:
             df_dmi = pd.read_csv(f_dmi_in, skiprows=12+n_atoms, delim_whitespace=True, names= ['IT', 'IQ', 'JT', 'JQ', 'N1', 'N2', 'N3', 'DRX', 'DRY', 'DRZ', 'DR', 'DX', 'DY', 'DZ'] )
-            print('check4')
             # see e.g. Coey for definition of DMI -> DMI tensor components ( (0, -Dz, Dy), (Dz, 0, -Dx), (-Dy, Dx, 0) )
             df['J_12'] += -df_dmi['DZ'] * meV
             df['J_13'] += df_dmi['DY'] * meV
@@ -197,6 +216,8 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True):
             df['J_31'] += -df_dmi['DY'] * meV
             df['J_32'] += df_dmi['DX'] * meV
             print("DMI included")
+    else:
+        print("DMI will *NOT* be included")
 
     # --------------------------------------------
 
@@ -208,7 +229,6 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True):
     # save to UCF file
     with open(fout, 'w') as fwrite:
         fwrite.write(f"# Unit cell size (Angstrom):\n1 1 1\n# Unit cell lattice vectors:\n")
-        print('check')
         np.savetxt(fwrite, primit_arr, fmt='%.6f', delimiter=' ')
         fwrite.write(f"# Atoms\n{n_atoms} {n_atoms}\n")
         np.savetxt(fwrite, basis_arr, fmt='%d %.6f %.6f %.6f %d', delimiter=' ')
