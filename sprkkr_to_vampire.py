@@ -16,15 +16,14 @@ from ucf_crop_small_values_vampire import ucf_crop
 # ========================== USER INPUT =============================
 
 # SPR-KKR calculation directory
-path = "H:/2D/Cr2Te3/bulk/sprkkr_imitating_experimental/test_structure"   #  "H:/SPR-KKR/bcc_Fe" # "H:/2D/Cr2Te3/bulk/sprkkr/PBE/NKTAB_1000" #  
+path = "H:/test_exchange_Fe_Co_Ni/Ni/a_lit" #"H:/2D/Cr2Te3/bulk/sprkkr_imitating_experimental/test_structure"   #  "H:/SPR-KKR/bcc_Fe" # "H:/2D/Cr2Te3/bulk/sprkkr/PBE/NKTAB_1000" #  
 # the seed name in SPR-KKR (the name of the system)
-system_name =  "POSCAR" # "Fe"   #
+system_name =  "Ni" #"POSCAR" # "Fe"   #
 
 include_dmi = False
-include_anisotropy = True
-f_electrons = False
+include_anisotropy = False
 
-crop_threshold = 0.1    # meV; set value > 0 to perform the crop post-processing (via the ucf_crop_small_values_vampire.py script; creates a new file)
+crop_threshold = 0 #0.1    # meV; set value > 0 to perform the crop post-processing (via the ucf_crop_small_values_vampire.py script; creates a new file)
 
 # ===================================================================
 
@@ -105,10 +104,9 @@ def write_mat_file(path, system_name, mag_moments, elements, torques):
     print(".mat file written")
 
 
-def get_mag_moments(path, system_name, n_atoms, f_electrons=False):
+def get_mag_moments(path, system_name, n_atoms):
     """Parse magnetic moments from _SCF.out file."""
     mag_moments = []
-    lines_to_skip = 4 if f_electrons==False else 5
 
     path_in = f"{path}/{system_name}_SCF.out"
 
@@ -123,21 +121,18 @@ def get_mag_moments(path, system_name, n_atoms, f_electrons=False):
     #         fw.write(str(output))
     #     print(error)
 
-    IT_flag, read_flag = False, False
-    skipped_lines = 0
+    IT_flag = False
 
     with open(path_in, 'r') as fr:
         for line in fr:
             if IT_flag == True:
-                skipped_lines += 1
+                if line.split()[0] == "sum":
+                    mag_moments.append(line.split()[4])
+                    IT_flag = False
 
             if "IT=" in line:
                 IT_flag = True
 
-            if skipped_lines > lines_to_skip:
-                mag_moments.append(line.split()[4])
-                skipped_lines = 0
-                IT_flag = False
 
     print("mag_moments obtained")
     return mag_moments[-n_atoms:]
@@ -225,7 +220,7 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotrop
     n_atoms, primit_arr, basis_arr, elements_arr, latt_param = get_structure_from_sys_sprkkr(path, system_name)
 
     # write the .mat file
-    mag_moments = get_mag_moments(path, system_name, n_atoms, f_electrons=f_electrons)
+    mag_moments = get_mag_moments(path, system_name, n_atoms)
     torques = get_torques(path, system_name, n_atoms) if include_anisotropy else np.zeros((n_atoms,))
     print(mag_moments)
     write_mat_file(path, system_name, mag_moments, elements_arr, torques)
