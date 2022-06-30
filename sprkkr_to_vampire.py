@@ -16,9 +16,9 @@ from ucf_crop_small_values_vampire import ucf_crop
 # ========================== USER INPUT =============================
 
 # SPR-KKR calculation directory
-path = "H:/test_exchange_Fe_Co_Ni/Co/a_lit" #"H:/2D/Cr2Te3/bulk/sprkkr_imitating_experimental/test_structure"   #  "H:/SPR-KKR/bcc_Fe" # "H:/2D/Cr2Te3/bulk/sprkkr/PBE/NKTAB_1000" #  
+path = "H:/test_exchange_Fe_Co_Ni/Fe/NL3" # Ni/a_lit" #"H:/2D/Cr2Te3/bulk/sprkkr_imitating_experimental/test_structure"   #  "H:/SPR-KKR/bcc_Fe" # "H:/2D/Cr2Te3/bulk/sprkkr/PBE/NKTAB_1000" #  
 # the seed name in SPR-KKR (the name of the system)
-system_name =  "Co" #"POSCAR" # "Fe"   #
+system_name =  "Fe" #"POSCAR" # "Fe"   #
 
 include_dmi = False
 include_anisotropy = False
@@ -221,7 +221,14 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotrop
 
     # write the .mat file
     mag_moments = get_mag_moments(path, system_name, n_atoms)
-    torques = get_torques(path, system_name, n_atoms) if include_anisotropy else np.zeros((n_atoms,))
+
+    # include anisotropy
+    if include_anisotropy == True:
+        torques = get_torques(path, system_name, n_atoms)
+    else:
+        torques = np.zeros((n_atoms,))
+        print("anisotropy will *NOT* be included")
+
     print(mag_moments)
     write_mat_file(path, system_name, mag_moments, elements_arr, torques)
 
