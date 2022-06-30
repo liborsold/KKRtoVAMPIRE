@@ -16,9 +16,9 @@ from ucf_crop_small_values_vampire import ucf_crop
 # ========================== USER INPUT =============================
 
 # SPR-KKR calculation directory
-path = "H:/test_exchange_Fe_Co_Ni/Ni/a_lit" #"H:/2D/Cr2Te3/bulk/sprkkr_imitating_experimental/test_structure"   #  "H:/SPR-KKR/bcc_Fe" # "H:/2D/Cr2Te3/bulk/sprkkr/PBE/NKTAB_1000" #  
+path = "H:/test_exchange_Fe_Co_Ni/Co/a_lit" #"H:/2D/Cr2Te3/bulk/sprkkr_imitating_experimental/test_structure"   #  "H:/SPR-KKR/bcc_Fe" # "H:/2D/Cr2Te3/bulk/sprkkr/PBE/NKTAB_1000" #  
 # the seed name in SPR-KKR (the name of the system)
-system_name =  "Ni" #"POSCAR" # "Fe"   #
+system_name =  "Co" #"POSCAR" # "Fe"   #
 
 include_dmi = False
 include_anisotropy = False
@@ -241,7 +241,7 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotrop
     df[['J_12', 'J_13', 'J_21', 'J_22', 'J_23', 'J_31', 'J_32', 'J_33']] = 0
 
     # ----- SET THE HEISENBERG MATRIX VALUES -----
-    df['J_11'] = df['J_11'] * meV
+    df['J_11'] = 2 * df['J_11'] * meV
     df['J_22'] = df['J_11']
     df['J_33'] = df['J_11']
     print("all matrix columns created")
@@ -261,10 +261,10 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotrop
 
     # --------------------------------------------
 
-    df.sort_values(by=['IT', 'JT', 'N1', 'N2', 'N3'], inplace=True)
-    df.reset_index(inplace=True)
-    df.drop(labels='index', axis=1, inplace=True)
-    print("datafield cleaned and sorted")
+    # df.sort_values(by=['IT', 'JT', 'N1', 'N2', 'N3'], inplace=True)
+    # df.reset_index(inplace=True)
+    # df.drop(labels='index', axis=1, inplace=True)
+    # print("datafield cleaned and sorted")
 
     # save to UCF file
     primit_arr_reduced = np.array( [primit_arr[0,:]/latt_params[0], primit_arr[1,:]/latt_params[1], primit_arr[2,:]/latt_params[2]] )
