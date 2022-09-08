@@ -16,9 +16,9 @@ from ucf_crop_small_values_vampire import ucf_crop
 # ========================== USER INPUT =============================
 
 # SPR-KKR calculation directory
-path = "H:/test_exchange_Fe_Co_Ni/Fe/NL3" # Ni/a_lit" #"H:/2D/Cr2Te3/bulk/sprkkr_imitating_experimental/test_structure"   #  "H:/SPR-KKR/bcc_Fe" # "H:/2D/Cr2Te3/bulk/sprkkr/PBE/NKTAB_1000" #  
+path = "H:/2D/Cr2Te3/bulk/sprkkr_imitating_experimental/Bi2Te3" #"H:/test_exchange_Fe_Co_Ni/Co/a_lit" #"H:/2D/Cr2Te3/bulk/sprkkr_imitating_experimental/test_structure"   #  "H:/SPR-KKR/bcc_Fe" # "H:/2D/Cr2Te3/bulk/sprkkr/PBE/NKTAB_1000" #  
 # the seed name in SPR-KKR (the name of the system)
-system_name =  "Fe" #"POSCAR" # "Fe"   #
+system_name =  "POSCAR" #"POSCAR" # "Fe"   #
 
 include_dmi = False
 include_anisotropy = False
@@ -53,26 +53,14 @@ def get_torques(path, system_name, n_atoms):
 
 
 
-def get_latt_params_for_input_file(path, system_name):
+def write_latt_params_for_input_file(path, latt_params):
     """Write part of the 'input' file for VAMPIRE containing the lattice parametres."""
-    fread = f"{path}/{system_name}.sys"
     fwrite = f"{path}/input_latt-params"
-    with open(fread, 'r') as fr:
-        latt_params_flag = False
-        for line in fr:
-            if latt_params_flag == True:
-                latt_params = np.array(line.split(), dtype=float) * 0.529177  # a.u. to Angstrom
-                break
-
-            if "lattice parameters  a b c" in line:
-                latt_params_flag = True
-        
     with open(fwrite, 'w') as fw:
         fw.write(f"dimensions:unit-cell-size-x = {latt_params[0]:.12f}\n")
         fw.write(f"dimensions:unit-cell-size-y = {latt_params[1]:.12f}\n")
         fw.write(f"dimensions:unit-cell-size-z = {latt_params[2]:.12f}\n")
-    
-    return latt_params
+    return 0
 
 
 def write_mat_file(path, system_name, mag_moments, elements, torques):
@@ -104,9 +92,9 @@ def write_mat_file(path, system_name, mag_moments, elements, torques):
     print(".mat file written")
 
 
-def get_mag_moments(path, system_name, n_atoms):
+def get_mag_moments(path, system_name, n_atoms, n_types, types_arr):
     """Parse magnetic moments from _SCF.out file."""
-    mag_moments = []
+    mag_moments_types = []
 
     path_in = f"{path}/{system_name}_SCF.out"
 
@@ -127,15 +115,16 @@ def get_mag_moments(path, system_name, n_atoms):
         for line in fr:
             if IT_flag == True:
                 if line.split()[0] == "sum":
-                    mag_moments.append(line.split()[4])
+                    mag_moments_types.append(line.split()[4])
                     IT_flag = False
 
             if "IT=" in line:
                 IT_flag = True
 
-
+    mag_moments_types = mag_moments_types[-n_types:]
     print("mag_moments obtained")
-    return mag_moments[-n_atoms:]
+    mag_moments = [mag_moments_types[types_arr[i]-1] for i in range(n_atoms)]
+    return mag_moments
 
 
 
@@ -202,6 +191,85 @@ def get_structure_from_sys_sprkkr(path, system_name):
     print(".sys file parsed")
     return n_atoms, primit_arr, basis_arr, elements_arr, latt_param
 
+
+def get_structure_from_pot_sprkkr(path, system_name):
+    """From the SPR-KKR's .pot file get the unit cell, number of atoms and their basis vectors."""
+    path_in = f"{path}/{system_name}.pot_new"
+
+    with open(path_in, 'r') as fr:
+        basis_vectors_flag, elements_flag, types_flag = False, False, False
+        delay_bas = True
+        i_basis   = 0
+        i_types = 0
+        i_elements = 0
+        primit_arr = np.zeros((3,3))
+
+        for line in fr:
+
+            if basis_vectors_flag == True:
+                if delay_bas == False:
+                    basis_arr[i_basis, 1:4] = np.array(line.split())[1:4]
+                    i_basis += 1
+                    if i_basis >= n_atoms:
+                        basis_vectors_flag = False
+                else:
+                    delay_bas = False
+
+            if types_flag == True:
+                types_arr.append(int(line.split()[4]))
+                i_types += 1
+                if i_types >= n_atoms:
+                    types_flag = False
+                    
+            if elements_flag == True:
+                elements_arr.append(line.split()[1])
+                i_elements += 1
+                if i_elements >= n_types:
+                    elements_flag = False
+
+            if "ALAT" in line:
+                latt_param = float(line.split()[1]) * 0.529177    # bohr radius to Angstrom
+
+            if "A(1)" in line:
+                lsplit = line.split()
+                primit_arr[0,:] = np.array([float(lsplit[i]) for i in range(1,4)]) * latt_param  
+
+            if "A(2)" in line:
+                lsplit = line.split()
+                primit_arr[1,:] = np.array([float(lsplit[i]) for i in range(1,4)]) * latt_param  
+
+            if "A(3)" in line:
+                lsplit = line.split()
+                primit_arr[2,:] = np.array([float(lsplit[i]) for i in range(1,4)]) * latt_param  
+
+            if "NQ" in line:
+                n_atoms = int(line.split()[1])
+
+            if line.startswith("NT"):
+                n_types = int(line.split()[1])
+
+            if "BASSCALE" in line:
+                basis_vectors_flag = True
+                delay_bas = True
+                basis_arr = np.zeros((n_atoms, 5))
+
+            if "ITOQ" in line:
+                types_flag = True
+                types_arr = []
+
+            if "NSEMCORSHLT" in line:
+                elements_flag = True
+                elements_arr = []
+                
+
+    basis_arr[:,0] = np.array(range(n_atoms))
+    basis_arr[:,4] = np.array(range(n_atoms))
+
+    elements_arr = [elements_arr[types_arr[i]-1] for i in range(n_atoms)]
+
+    print(".pot file parsed")
+    return n_atoms, primit_arr, basis_arr, elements_arr, latt_param, types_arr, n_types
+
             
 
 def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotropy=True):
@@ -217,10 +285,15 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotrop
     fout = f"{path}/vampire.UCF"
 
     # get the structure data from .sys file
-    n_atoms, primit_arr, basis_arr, elements_arr, latt_param = get_structure_from_sys_sprkkr(path, system_name)
+    n_atoms, primit_arr, basis_arr, elements_arr, latt_param, types_arr, n_types = get_structure_from_pot_sprkkr(path, system_name) # get_structure_from_sys_sprkkr(path, system_name)
+    print(n_atoms)
+    print(primit_arr)
+    print(basis_arr)
+    print(elements_arr)
+    print(latt_param)
 
     # write the .mat file
-    mag_moments = get_mag_moments(path, system_name, n_atoms)
+    mag_moments = get_mag_moments(path, system_name, n_atoms, n_types, types_arr)
 
     # include anisotropy
     if include_anisotropy == True:
@@ -232,17 +305,21 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotrop
     print(mag_moments)
     write_mat_file(path, system_name, mag_moments, elements_arr, torques)
 
+    # calculate the length of the effective lattice parameters
+    latt_params = np.array( [np.sqrt(np.sum(np.power(primit_arr[i,:], 2))) for i in range(3)] )
+    print(f"latt_params: {latt_params}")
+
     # write the input file with the correct lattice parameters
-    latt_params = get_latt_params_for_input_file(path, system_name)
+    write_latt_params_for_input_file(path, latt_params)
 
     print(elements_arr)
     #with open(f_exchange_in, 'r') as fr:
     df = pd.read_csv(f_exchange_in, skiprows=9+n_atoms, delim_whitespace=True, names= ['IT', 'IQ', 'JT', 'JQ', 'N1', 'N2', 'N3', 'DRX', 'DRY', 'DRZ', 'DR', 'J_xx', 'J_yy', 'J_xy', 'J_yx'] )
-    df.drop(['IQ','JQ', 'J_yy', 'J_xy', 'J_yx', 'DRX', 'DRY', 'DRZ', 'DR'], axis=1, inplace=True)
+    df.drop(['IT','JT', 'J_yy', 'J_xy', 'J_yx', 'DRX', 'DRY', 'DRZ', 'DR'], axis=1, inplace=True)
 
     # indexing from 0 instead of 1 for VAMPIRE
-    df['IT'] = df['IT']-1
-    df['JT'] = df['JT']-1
+    df['IQ'] = df['IQ']-1
+    df['JQ'] = df['JQ']-1
     # make a tensor with zeros
     df.rename(columns={'J_xx':'J_11'}, inplace=True)
     df[['J_12', 'J_13', 'J_21', 'J_22', 'J_23', 'J_31', 'J_32', 'J_33']] = 0
@@ -279,7 +356,16 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotrop
     
     # coerce values  between  0 and 1 
     n_basis, m_basis = basis_arr_reduced.shape
-    basis_arr_reduced = np.array( [[ basis_arr_reduced[i,j] if basis_arr_reduced[i,j] >= 0 else 1+basis_arr_reduced[i,j] for j in range(m_basis)] for i in range(n_basis) ]  )
+
+    for i in range(n_basis):
+        for j in range(m_basis):
+            if basis_arr_reduced[i,j] < 0.0:
+                basis_arr_reduced[i,j] += 1.0
+            
+            if basis_arr_reduced[i,j] >= 1.0 or f"{basis_arr_reduced[i,j]:.6f}" == "1.000000":
+                basis_arr_reduced[i,j] -= 1.0
+
+    basis_arr_reduced = np.array( basis_arr_reduced )
 
     with open(fout, 'w') as fwrite:
         fwrite.write(f"# Unit cell size (Angstrom):\n")
@@ -288,12 +374,12 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotrop
         np.savetxt(fwrite, primit_arr_reduced, fmt='%.6f', delimiter=' ')
         fwrite.write(f"# Atoms\n{n_atoms} {n_atoms}\n")
         np.savetxt(fwrite, basis_arr_reduced, fmt='%d %.6f %.6f %.6f %d', delimiter=' ')
-        fwrite.write(f"# Interactions\n{df.shape[0]} tensorial\n")
+        fwrite.write(f"# Interactions; J values from SPR-KKR multiplied by 2; DMI not yet \n{df.shape[0]} tensorial\n")
         df.to_csv(fwrite, mode='w', header=False, sep=" ", line_terminator='\n')
     print(".UCF file written")
 
 
-    if crop_threshold > 0:
+    if crop_threshold >= 0:
         ucf_crop(path, 'vampire.UCF', crop_threshold, save_file=True)
 
 
