@@ -29,7 +29,7 @@ system_name =  "CONTCAR" #"POSCAR" # "Fe"   #
 include_dmi = False
 include_anisotropy = True
 
-crop_threshold = 0 #0.1    # meV; set value > 0 to perform the crop post-processing (via the ucf_crop_small_values_vampire.py script; creates a new file)
+crop_thresholds = [0] #[0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.10, 0.20, 0.30, 0.50] 0 #0.1    # meV; set value > 0 to perform the crop post-processing (via the ucf_crop_small_values_vampire.py script; creates a new file)
 
 # ===================================================================
 
@@ -321,7 +321,45 @@ def distance_column(df, uc_vectors, atom_coordinates):
     r1 = atom_coordinates[df['i']]
     r2 = atom_coordinates[df['j']] + uc_vectors[0,:]*df[['dx']].to_numpy() + uc_vectors[1,:]*df[['dy']].to_numpy() + uc_vectors[2,:]*df[['dz']].to_numpy()
     return np.sqrt(np.sum(np.power((r1-r2),2), axis=1))
+
+
+def coerce_overflowing_atoms_to_unit_cell(basis_arr_reduced, df):
+    """Coerce fractional coordinates of atoms between 0.0 and 1.0.
+         When fractional coordinate 
+          - more than 1.0: subtract 1.0, but also change the positions of the unit cells in the UCF data (e.g. from 0 0 0 to 0 0 1)
+          - less than 0.0: add 1.0, but also change the positions of the unit cells in the UCF data (e.g. from 0 0 0 to 0 0 -1)"""
+
+    def shift_unit_cell_positions(df, atom_number, coordinate, shift):
+        """In df, in all interactions involving 'atom_number', 
+                            ADD      'shift' to    'coordinate' if atom is first in the interaction,
+                            SUBTRACT 'shift' from  'coordinate' if atoms is second in the interaction. 
+           
+           ...                 
+           (Given the parsed 'Jij.dat' in a pandas datafield 'df').
+           (Column names: ['IT', 'IQ', 'JT', 'JQ', 'N1', 'N2', 'N3', 'DRX', 'DRY', 'DRZ', 'DR', 'J_xx', 'J_yy', 'J_xy', 'J_yx'] )"""
+        coordinate_name = {0:'N1', 1:'N2', 2:'N3'}
+        column = coordinate_name[coordinate]
+
+        df.loc[df['IQ']==atom_number, [column]] += shift
+        df.loc[df['JQ']==atom_number, [column]] -= shift
+        return df
+
+    n_basis = basis_arr_reduced.shape[0]
+
+    for i in range(n_basis):
+        for j in range(1,4):
+            # j: 1 - x, 2 - y, 3 - z
+            if basis_arr_reduced[i,j] < 0.0:
+                basis_arr_reduced[i,j] += 1.0
+                df = shift_unit_cell_positions(df, atom_number=i, coordinate=j-1, shift=1)
             
+            if basis_arr_reduced[i,j] >= 1.0 or f"{basis_arr_reduced[i,j]:.6f}" == "1.000000":
+                basis_arr_reduced[i,j] -= 1.0
+                df = shift_unit_cell_positions(df, atom_number=i, coordinate=j-1, shift=-1)
+
+    basis_arr_reduced = np.array( basis_arr_reduced )
+
+    return basis_arr_reduced, df
 
 def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotropy=True):
     """Convert exchange and DMI from SPR-KKR into VAMPIRE UCF file."""
@@ -410,23 +448,7 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotrop
     primit_arr_reduced = np.array( [primit_arr[0,:]/latt_params[0], primit_arr[1,:]/latt_params[1], primit_arr[2,:]/latt_params[2]] )
     basis_arr_reduced = np.array( [basis_arr[:,0], basis_arr[:,1]*latt_param/latt_params[0], basis_arr[:,2]*latt_param/latt_params[1], basis_arr[:,3]*latt_param/latt_params[2], basis_arr[:,4]] ).T
 
-    # # coerce values  between  0 and 1
-    # !!!! coercing values results in wrong distances: an atom will be translated, but this needs to be taken into account in the positions of the cells
-    # -> for now, do not coerce, see if VAMPIRE handles if atom out of the unit cell file (fractional coordinate is more than 1.0)
-    # IF PROBLEMS: coerce, but also modify, so that when subtracting 1.0, then for instance, the position of the unit cell is not 0 0 0, but 0 0 -1 for example 
-    #  
-    # n_basis = basis_arr_reduced.shape[0]
-
-    # for i in range(n_basis):
-    #     for j in range(1,4):
-    #         if basis_arr_reduced[i,j] < 0.0:
-    #             basis_arr_reduced[i,j] += 1.0
-            
-    #         if basis_arr_reduced[i,j] >= 1.0 or f"{basis_arr_reduced[i,j]:.6f}" == "1.000000":
-    #             basis_arr_reduced[i,j] -= 1.0
-
-    # basis_arr_reduced = np.array( basis_arr_reduced )
-
+    basis_arr_reduced, df = coerce_overflowing_atoms_to_unit_cell(basis_arr_reduced, df)
 
     # save to .UCF file
     with open(fout, 'w') as fwrite:
@@ -440,9 +462,9 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotrop
         df.to_csv(fwrite, mode='w', header=False, sep=" ", line_terminator='\n')
     print(".UCF file written")
 
-
-    if crop_threshold >= 0:
-        ucf_crop(path, 'vampire.UCF', crop_threshold, save_file=True)
+    for crop_threshold in crop_thresholds:
+        if crop_threshold >= 0:
+            ucf_crop(path, 'vampire.UCF', crop_threshold, save_file=True)
 
 
 def main():
