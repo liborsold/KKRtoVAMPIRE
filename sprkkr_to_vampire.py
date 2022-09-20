@@ -1,11 +1,12 @@
 """Convert the SPR-KKR exchange interactions to vampire.
-    Needed are the files: seedname.sys, seedname_SCF.out, seedname_JXC_XCPLTEN_Jij.dat and seedname_JXC_XCPLTEN_Dij.dat.
-    Specify if DMI should be included, if f-electrons are present (for parsing) and if the interactions should be croppped.
+    Needed are the files: seedname.pot_new, seedname_SCF.out, seedname_JXC_XCPLTEN_Jij.dat and seedname_JXC_XCPLTEN_Dij.dat.
+    Specify if DMI and anisotropy should be included and if the interactions should be croppped.
     
     !!!! tested on .pot file with  >> FORMAT     9 (18.01.2019) <<
     
     """
 
+from multiprocessing.sharedctypes import Value
 import pandas as pd
 import numpy as np
 from os.path import exists
@@ -123,18 +124,21 @@ def get_mag_moments(path, system_name, n_atoms, n_types, types_arr):
     IT_flag = False
 
     with open(path_in, 'r') as fr:
-        for line in fr:
+        for i, line in enumerate(fr):
             if IT_flag == True:
-                if line.split()[0] == "sum":
-                    mag_moments_types.append(line.split()[4])
-                    IT_flag = False
+                try:
+                    if line.split()[0] == "sum":
+                        mag_moments_types.append(line.split()[4])
+                        IT_flag = False
+                except IndexError:
+                    print(f"IndexError on line {i} of file!")
 
             if "IT=" in line:
                 IT_flag = True
 
     mag_moments_types = mag_moments_types[-n_types:]
-    print("mag_moments obtained")
     mag_moments_elements = [mag_moments_types[types_arr[i]-1] for i in range(n_atoms)]
+    print(f"mag_moments obtained: {mag_moments_elements}")
     return mag_moments_elements, mag_moments_types
 
 
@@ -282,6 +286,7 @@ def get_structure_from_pot_sprkkr(path, system_name):
     print(".pot file parsed")
     return n_atoms, primit_arr, basis_arr, atoms_names, types_names, latt_param, types_arr, n_types
 
+
 def structure_data_UCF(fname):
     """Return 'uc_vectors' and 'atom_coordinates' for futher distance calculations."""
     uc_vectors = np.zeros((3,3))
@@ -306,6 +311,7 @@ def structure_data_UCF(fname):
     atom_coordinates = np.array(atom_coordinates) @ uc_vectors
     print(atom_coordinates)
     return uc_vectors, atom_coordinates
+
 
 def distance_column(df, uc_vectors, atom_coordinates):
     """Take pandas df with UCF file data and calculate distance for each interaction.
@@ -396,23 +402,30 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotrop
     # df.drop(labels='index', axis=1, inplace=True)
     # print("datafield cleaned and sorted")
 
+    # COMPLETENESS CHECK
+    # If there is an interaction between two atoms of certain types 'a' and 'b', check if the same interaction is listed for all atoms of types 'a' and 'b'
+    
 
     # convert to fractional
     primit_arr_reduced = np.array( [primit_arr[0,:]/latt_params[0], primit_arr[1,:]/latt_params[1], primit_arr[2,:]/latt_params[2]] )
     basis_arr_reduced = np.array( [basis_arr[:,0], basis_arr[:,1]*latt_param/latt_params[0], basis_arr[:,2]*latt_param/latt_params[1], basis_arr[:,3]*latt_param/latt_params[2], basis_arr[:,4]] ).T
 
-    # coerce values  between  0 and 1 
-    n_basis = basis_arr_reduced.shape[0]
+    # # coerce values  between  0 and 1
+    # !!!! coercing values results in wrong distances: an atom will be translated, but this needs to be taken into account in the positions of the cells
+    # -> for now, do not coerce, see if VAMPIRE handles if atom out of the unit cell file (fractional coordinate is more than 1.0)
+    # IF PROBLEMS: coerce, but also modify, so that when subtracting 1.0, then for instance, the position of the unit cell is not 0 0 0, but 0 0 -1 for example 
+    #  
+    # n_basis = basis_arr_reduced.shape[0]
 
-    for i in range(n_basis):
-        for j in range(1,4):
-            if basis_arr_reduced[i,j] < 0.0:
-                basis_arr_reduced[i,j] += 1.0
+    # for i in range(n_basis):
+    #     for j in range(1,4):
+    #         if basis_arr_reduced[i,j] < 0.0:
+    #             basis_arr_reduced[i,j] += 1.0
             
-            if basis_arr_reduced[i,j] >= 1.0 or f"{basis_arr_reduced[i,j]:.6f}" == "1.000000":
-                basis_arr_reduced[i,j] -= 1.0
+    #         if basis_arr_reduced[i,j] >= 1.0 or f"{basis_arr_reduced[i,j]:.6f}" == "1.000000":
+    #             basis_arr_reduced[i,j] -= 1.0
 
-    basis_arr_reduced = np.array( basis_arr_reduced )
+    # basis_arr_reduced = np.array( basis_arr_reduced )
 
 
     # save to .UCF file
