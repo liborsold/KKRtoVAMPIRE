@@ -453,9 +453,9 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotrop
     # save to .UCF file
     with open(fout, 'w') as fwrite:
         fwrite.write(f"# Unit cell size (Angstrom):\n")
-        np.savetxt(fwrite, [latt_params], fmt='%.8f', delimiter=' ')
+        np.savetxt(fwrite, np.array([[1], [1], [1]]).T, fmt='%.0f', delimiter=' ')
         fwrite.write("# Unit cell lattice vectors:\n")
-        np.savetxt(fwrite, primit_arr_reduced, fmt='%.6f', delimiter=' ')
+        np.savetxt(fwrite, primit_arr, fmt='%.6f', delimiter=' ')
         fwrite.write(f"# Atoms\n{n_atoms} {n_atoms}\n")
         np.savetxt(fwrite, basis_arr_reduced, fmt='%d %.6f %.6f %.6f %d', delimiter=' ')
         fwrite.write(f"# Interactions; J values from SPR-KKR multiplied by 2; DMI not yet \n{df.shape[0]} tensorial\n")
