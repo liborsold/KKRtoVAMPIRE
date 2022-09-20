@@ -95,7 +95,7 @@ def write_mat_file(path, system_name, mag_moments, elements, torques):
                          f"material[{i+1}]:damping-constant=1.0\n"
                          f"material[{i+1}]:atomic-spin-moment={abs(magmom):.8f} !muB\n"
                          f"material[{i+1}]:uniaxial-anisotropy-constant={torque:.8e}\n"
-                         f"material[{i+1}]:material-element={elements[i]}\n"                        
+                         f"material[{i+1}]:material-element={elements[i].split('_')[0]}\n"                        
                          f"material[{i+1}]:initial-spin-direction = 0.0,0.0,{np.sign(magmom):.1f}\n"
                          f"material[{i+1}]:uniaxial-anisotropy-direction = 0.0 , 0.0, 1.0\n"
                          "#---------------------------------------------------\n"
@@ -209,7 +209,7 @@ def get_structure_from_sys_sprkkr(path, system_name):
 
 def get_structure_from_pot_sprkkr(path, system_name):
     """From the SPR-KKR's .pot file get the unit cell, number of atoms and their basis vectors."""
-    path_in = f"{path}/{system_name}.pot_new"
+    path_in = f"{path}/{system_name}_SCF.pot_new"
 
     with open(path_in, 'r') as fr:
         basis_vectors_flag, elements_flag, types_flag = False, False, False
