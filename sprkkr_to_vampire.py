@@ -323,7 +323,7 @@ def distance_column(df, uc_vectors, atom_coordinates):
     return np.sqrt(np.sum(np.power((r1-r2),2), axis=1))
 
 
-def coerce_overflowing_atoms_to_unit_cell(basis_arr_reduced, df):
+def coerce_overflowing_atoms_to_unit_cell(basis_arr_reduced, df, primit_arr, latt_params):
     """Coerce fractional coordinates of atoms between 0.0 and 1.0.
          When fractional coordinate 
           - more than 1.0: subtract 1.0, but also change the positions of the unit cells in the UCF data (e.g. from 0 0 0 to 0 0 1)
@@ -344,18 +344,39 @@ def coerce_overflowing_atoms_to_unit_cell(basis_arr_reduced, df):
         df.loc[df['JQ']==atom_number, [column]] -= shift
         return df
 
+    def what_combination_of_latt_vectors_coerces_to_basic_unit_cell(basis_arr_reduced, latt_params, primit_arr):
+        atom_coord_cart = basis_arr_reduced[1:4] * latt_params
+
+        # if already coerced, don't do anything
+        if 0 <= atom_coord_cart[0] < latt_params[0] and 0 <= atom_coord_cart[1] < latt_params[1] and 0 <= atom_coord_cart[2] < latt_params[2]:
+            return basis_arr_reduced, 0, 0, 0
+
+        # else look what transformation will coerce it
+        for du1 in range(-1,2):
+            for du2 in range(-1,2):
+                for du3 in range(-1,2):
+                    new_atom_coord_cart = atom_coord_cart + du1 * primit_arr[0,:] + du2 * primit_arr[1,:] + du3 * primit_arr[2,:]
+                    if 0 <= new_atom_coord_cart[0] < latt_params[0] and 0 <= new_atom_coord_cart[1] < latt_params[1] and 0 <= new_atom_coord_cart[2] < latt_params[2]:
+                        basis_arr_reduced[1:4] = (new_atom_coord_cart[0]/latt_params[0], new_atom_coord_cart[1]/latt_params[1], new_atom_coord_cart[2]/latt_params[2])
+                        return (basis_arr_reduced, du1, du2, du3)
+
     n_basis = basis_arr_reduced.shape[0]
 
     for i in range(n_basis):
-        for j in range(1,4):
-            # j: 1 - x, 2 - y, 3 - z
-            if basis_arr_reduced[i,j] < 0.0:
-                basis_arr_reduced[i,j] += 1.0
-                df = shift_unit_cell_positions(df, atom_number=i, coordinate=j-1, shift=1)
+        basis_arr_reduced[i,:], du1, du2, du3 = what_combination_of_latt_vectors_coerces_to_basic_unit_cell(basis_arr_reduced[i,:], latt_params, primit_arr)
+        df = shift_unit_cell_positions(df, atom_number=i, coordinate=0, shift=du1)
+        df = shift_unit_cell_positions(df, atom_number=i, coordinate=1, shift=du2)
+        df = shift_unit_cell_positions(df, atom_number=i, coordinate=2, shift=du3)
+
+        # for j in range(1,4):
+        #     # j: 1 - x, 2 - y, 3 - z
+        #     if basis_arr_reduced[i,j] < 0.0:
+        #         basis_arr_reduced[i,j] += 1.0
+        #         df = shift_unit_cell_positions(df, atom_number=i, coordinate=j-1, shift=1)
             
-            if basis_arr_reduced[i,j] >= 1.0 or f"{basis_arr_reduced[i,j]:.6f}" == "1.000000":
-                basis_arr_reduced[i,j] -= 1.0
-                df = shift_unit_cell_positions(df, atom_number=i, coordinate=j-1, shift=-1)
+        #     if basis_arr_reduced[i,j] >= 1.0 or f"{basis_arr_reduced[i,j]:.6f}" == "1.000000":
+        #         basis_arr_reduced[i,j] -= 1.0
+        #         df = shift_unit_cell_positions(df, atom_number=i, coordinate=j-1, shift=-1)
 
     basis_arr_reduced = np.array( basis_arr_reduced )
 
@@ -448,16 +469,16 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotrop
     primit_arr_reduced = np.array( [primit_arr[0,:]/latt_params[0], primit_arr[1,:]/latt_params[1], primit_arr[2,:]/latt_params[2]] )
     basis_arr_reduced = np.array( [basis_arr[:,0], basis_arr[:,1]*latt_param/latt_params[0], basis_arr[:,2]*latt_param/latt_params[1], basis_arr[:,3]*latt_param/latt_params[2], basis_arr[:,4]] ).T
 
-    basis_arr_reduced, df = coerce_overflowing_atoms_to_unit_cell(basis_arr_reduced, df)
+    #basis_arr_reduced, df = coerce_overflowing_atoms_to_unit_cell(basis_arr_reduced, df, primit_arr, latt_params)
 
     # save to .UCF file
     with open(fout, 'w') as fwrite:
         fwrite.write(f"# Unit cell size (Angstrom):\n")
         np.savetxt(fwrite, np.array([[1], [1], [1]]).T, fmt='%.0f', delimiter=' ')
         fwrite.write("# Unit cell lattice vectors:\n")
-        np.savetxt(fwrite, primit_arr, fmt='%.6f', delimiter=' ')
+        np.savetxt(fwrite, primit_arr, fmt='%.12f', delimiter=' ')
         fwrite.write(f"# Atoms\n{n_atoms} {n_atoms}\n")
-        np.savetxt(fwrite, basis_arr_reduced, fmt='%d %.6f %.6f %.6f %d', delimiter=' ')
+        np.savetxt(fwrite, basis_arr_reduced, fmt='%d %.12f %.12f %.12f %d', delimiter=' ')
         fwrite.write(f"# Interactions; J values from SPR-KKR multiplied by 2; DMI not yet \n{df.shape[0]} tensorial\n")
         df.to_csv(fwrite, mode='w', header=False, sep=" ", line_terminator='\n')
     print(".UCF file written")
