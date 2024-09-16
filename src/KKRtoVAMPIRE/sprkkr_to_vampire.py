@@ -13,12 +13,6 @@ from os.path import exists
 import subprocess
 from copy import copy
 
-import sys
-# insert at 1, 0 is the script path (or '' in REPL)
-sys.path.insert(1, '../ucf_crop_small_values_vampire')
-from ucf_crop_small_values_vampire import ucf_crop
-
-
 # ========================== USER INPUT =============================
 
 # SPR-KKR calculation directory
@@ -32,6 +26,77 @@ include_anisotropy = True
 crop_thresholds = [0] #[0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.10, 0.20, 0.30, 0.50] 0 #0.1    # meV; set value > 0 to perform the crop post-processing (via the ucf_crop_small_values_vampire.py script; creates a new file)
 
 # ===================================================================
+
+def ucf_crop(path='.', file_name='vampire.UCF', threshold=0.00, save_file=True, \
+             convert_tensorial_to_isotropic=True, thresholds_in_fraction_of_total=True):
+    """Drop values from fread which
+
+            -- if thresholds_in_fraction_of_total == True --
+        (1) constitute the smallest sum of the <threshold> fraction of the total (in absolute value), or
+
+            -- if thresholds_in_fraction_of_total == False --
+        (2) are lower than <threshold>, given in meV."""
+
+    def get_rows_to_skip_in_UCF(path, file_name):
+        """Find how many lines wo skip in UCF file; needed for ucf_crop()."""
+        fread = f"{path}/{file_name}"
+        rows_to_skip = 0
+        with open(fread, 'r') as fr:
+            for line in fr:
+                rows_to_skip += 1
+                if "Interactions" in line:
+                    return rows_to_skip + 1
+
+    thresh_unit = '' if thresholds_in_fraction_of_total == True else 'meV'
+    threshold_J = threshold * 1.602e-22    # convert meV to J, since J is used in .ucf
+    print(f"----------- threshold {threshold:.3f} {thresh_unit} -----------")
+
+    rows_to_skip = get_rows_to_skip_in_UCF(path, file_name)
+
+    fread = f"{path}/{file_name}"
+    with open(Path(fread), 'r') as fr:
+        df = pd.read_csv(fread, skiprows=rows_to_skip, delim_whitespace=True, names= ['IID', 'i', 'j', 'dx', 'dy', 'dz', 'Jxx', 'Jxy', 'Jxz', 'Jyx', 'Jyy', 'Jyz', 'Jzx', 'Jzy', 'Jzz'] )
+        n_orig = df.shape[0]
+
+        # sort data by the decreasing value of sum of abs() of all columns in each row
+          # abs sum of all columns
+        df['abs_sum_all'] = df[['Jxx', 'Jxy', 'Jxz', 'Jyx', 'Jyy', 'Jyz', 'Jzx', 'Jzy', 'Jzz']].abs().sum(axis=1)
+        df.sort_values('abs_sum_all', inplace=True, ascending=False)
+
+        if thresholds_in_fraction_of_total == True:
+            # crop all interactions that contribute in the lowest <threshold> fraction of the sum of abs() interactions
+               # cumulative abs sum of all columns
+            df['cum_abs_sum_all'] = df['abs_sum_all'].cumsum()
+            sum_total = df['cum_abs_sum_all'].iloc[-1]
+            df = df[ df['cum_abs_sum_all'] <= (1-threshold)*sum_total ]
+            df.drop('cum_abs_sum_all', 1, inplace=True)
+            df.drop('abs_sum_all', 1, inplace=True)
+
+        else: 
+            # crop all interactions which are smaller than <threshold> (in meV)
+            df.drop('abs_sum_all', 1, inplace=True)
+            df = df[ df[['Jxx', 'Jxy', 'Jxz', 'Jyx', 'Jyy', 'Jyz', 'Jzx', 'Jzy', 'Jzz']].abs().max(axis=1) >= threshold_J ]
+
+        n_after_crop = df.shape[0]
+
+        fwrite = fread + f"_cropped_{n_after_crop}_{threshold:.3f}{thresh_unit}"
+
+        with open(fwrite, 'w') as fw:
+            i = 0
+            for line in fr:
+                if i >= rows_to_skip-1:
+                    break 
+                fw.write(line)
+                i += 1
+            mode = 'isotropic' if convert_tensorial_to_isotropic == True else 'tensorial'
+            fw.write(f"{n_after_crop} {mode}\n")
+        df.reset_index(inplace=True)
+        df.drop(labels=['IID', 'index'], axis=1, inplace=True)
+        if convert_tensorial_to_isotropic == True:
+            df.drop(labels=['Jxy', 'Jxz', 'Jyx', 'Jyy', 'Jyz', 'Jzx', 'Jzy', 'Jzz'], axis=1, inplace=True)
+        df.to_csv(fwrite, mode='a', header=False, sep=" ")
+        print("cropped .UCF file written")
+        return [n_after_crop, n_orig]
 
 def get_torques(path, system_name, n_atoms, types_arr):
     """Parse torques from _TORQUE.out file."""
