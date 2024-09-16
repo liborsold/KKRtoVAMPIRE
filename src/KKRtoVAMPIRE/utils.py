@@ -13,15 +13,6 @@ from os.path import exists
 import subprocess
 from copy import copy
 
-class Converter():
-    def __init__(self, path, system_name, include_dmi=False, include_anisotropy=True, crop_thresholds=[0]):
-        self.path = path
-        self.system_name = system_name
-        self.include_dmi = include_dmi
-        self.include_anisotropy = include_anisotropy
-        self.crop_thresholds = crop_thresholds
-
-
 def ucf_crop(path='.', file_name='vampire.UCF', threshold=0.00, save_file=True, \
              convert_tensorial_to_isotropic=True, thresholds_in_fraction_of_total=True):
     """Drop values from fread which
