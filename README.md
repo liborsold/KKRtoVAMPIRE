@@ -2,7 +2,7 @@
 
 **_Convert the Heisenberg Hamiltonian calculated with SPR-KKR to the VAMPIRE format._**
 
-_If you find this package useful, please cite_ [Q. Guillet, L. Vojáček et al., Phys. Rev. Materials 7, 054005 (2023)](https://journals.aps.org/prmaterials/abstract/10.1103/PhysRevMaterials.7.054005).
+_If you find this package useful, please cite_ [Q. Guillet&ast;, L. Vojáček&ast; et al., Phys. Rev. Materials 7, 054005 (2023)](https://journals.aps.org/prmaterials/abstract/10.1103/PhysRevMaterials.7.054005).
 
 ## Usage
 
