@@ -2,6 +2,10 @@
 
 **_Convert the Heisenberg Hamiltonian calculated with SPR-KKR to the VAMPIRE format._**
 
+```
+pip install KKRtoVAMPIRE
+```
+
 If you find this package useful, please cite [Q. Guillet*, L. Vojáček*, _et al._, Phys. Rev. Materials **7**, 054005 (2023)](https://journals.aps.org/prmaterials/abstract/10.1103/PhysRevMaterials.7.054005).
 
 ## Usage
