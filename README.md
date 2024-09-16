@@ -1,6 +1,6 @@
 # KKRtoVAMPIRE
 
-**<i>Convert the Heisenberg Hamiltonian calculated with SPR-KKR to the VAMPIRE format.</i>**
+**_Convert the Heisenberg Hamiltonian calculated with SPR-KKR to the VAMPIRE format._**
 
 _If you find this package useful, please cite_ [Q. Guillet*, L. Vojáček* _et al._, Phys. Rev. Materials **7**, 054005 (2023)](https://journals.aps.org/prmaterials/abstract/10.1103/PhysRevMaterials.7.054005).
 
