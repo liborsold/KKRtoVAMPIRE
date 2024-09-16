@@ -1,2 +1,2 @@
-# sprkkr_to_vampire
-Convert the SPR-KKR exchange interactions to VAMPIRE 
+# KKRtoVAMPIRE
+Convert the Heisenberg Hamiltonian calculated with SPR-KKR to the VAMPIRE format.
