@@ -1,4 +1,6 @@
-from utils import *
+from KKRtoVAMPIRE.utils import *
+from os.path import exists
+from os import mkdir
 class Converter():
     """Class to convert a SPR-KKR input files to a .ucf file for VAMPIRE simulations.
     """
@@ -15,6 +17,7 @@ class Converter():
         self.path = path
         self.system_name = system_name
 
-    def convert(self, crop_thresholds=[0], include_dmi=False, include_anisotropy=True):
-        sprkkr_to_vampire_ucf(path=self.path, system_name=self.system_name, crop_thresholds=crop_thresholds, \
+    def convert(self, path_out, crop_thresholds=[0], include_dmi=False, include_anisotropy=True):
+        if not exists(path_out): mkdir(path_out)
+        sprkkr_to_vampire_ucf(path_in=self.path, path_out=path_out, system_name=self.system_name, crop_thresholds=crop_thresholds, \
                             include_dmi=include_dmi, include_anisotropy=include_anisotropy)

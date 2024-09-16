@@ -12,8 +12,9 @@ import numpy as np
 from os.path import exists
 import subprocess
 from copy import copy
+from pathlib import Path
 
-def ucf_crop(path='.', file_name='vampire.UCF', threshold=0.00, save_file=True, \
+def ucf_crop(path='.', file_name='vampire.UCF', threshold=0.00, \
              convert_tensorial_to_isotropic=True, thresholds_in_fraction_of_total=True):
     """Drop values from fread which
 
@@ -65,7 +66,7 @@ def ucf_crop(path='.', file_name='vampire.UCF', threshold=0.00, save_file=True, 
 
         n_after_crop = df.shape[0]
 
-        fwrite = fread + f"_cropped_{n_after_crop}_{threshold:.3f}{thresh_unit}"
+        fwrite = fread = f"{path}/{file_name}_cropped_{n_after_crop}_{threshold:.3f}{thresh_unit}"
 
         with open(fwrite, 'w') as fw:
             i = 0
@@ -123,12 +124,12 @@ def write_latt_params_for_input_file(path, latt_params):
         fw.write(f"dimensions:unit-cell-size-z = {latt_params[2]:.12f}\n")
     return 0
 
-def write_mat_file(path, system_name, mag_moments, elements, torques):
+def write_mat_file(path_out, system_name, mag_moments, elements, torques):
     """Write the .mat file for vampire, given the magnetic moments and types of elements."""
     if len(mag_moments) != len(elements):
         raise ValueError("elements and mag_moments arrays need to be of the same length!")
 
-    path_in = f"{path}/vampire.mat"
+    path_in = f"{path_out}/vampire.mat"
 
     with open(path_in, 'w') as fw:
         fw.write(f"material:num-materials = {len(elements)}\n")
@@ -253,7 +254,7 @@ def get_structure_from_sys_sprkkr(path, system_name):
 
 def get_structure_from_pot_sprkkr(path, system_name):
     """From the SPR-KKR's .pot file get the unit cell, number of atoms and their basis vectors."""
-    path_in = f"{path}/{system_name}_SCF.pot_new"
+    path_in = f"{path}/{system_name}.pot_new"
 
     with open(path_in, 'r') as fr:
         basis_vectors_flag, elements_flag, types_flag = False, False, False
@@ -426,20 +427,20 @@ def coerce_overflowing_atoms_to_unit_cell(basis_arr_reduced, df, primit_arr, lat
 
     return basis_arr_reduced, df
 
-def sprkkr_to_vampire_ucf(path, system_name, crop_thresholds, include_dmi=True, include_anisotropy=True):
+def sprkkr_to_vampire_ucf(path_in='.', path_out='.', system_name='POSCAR', crop_thresholds=[0.0], include_dmi=True, include_anisotropy=True):
     """Convert exchange and DMI from SPR-KKR into VAMPIRE UCF file."""
 
     meV = 1.602e-22  #J
 
     # SPR-KKR J and DMI .dat files in
-    f_exchange_in = f"{path}/{system_name}_JXC_XCPLTEN_Jij.dat"
-    f_dmi_in      = f"{path}/{system_name}_JXC_XCPLTEN_Dij.dat"
+    f_exchange_in = f"{path_in}/{system_name}_JXC_XCPLTEN_Jij.dat"
+    f_dmi_in      = f"{path_in}/{system_name}_JXC_XCPLTEN_Dij.dat"
 
     # UCF file out
-    fout = f"{path}/vampire.UCF"
+    fout = f"{path_out}/vampire.UCF"
 
     # get the structure data from .sys file
-    n_atoms, primit_arr, basis_arr, atoms_names, types_names, latt_param, types_arr, n_types = get_structure_from_pot_sprkkr(path, system_name) # get_structure_from_sys_sprkkr(path, system_name) <- frmo sys file outdated
+    n_atoms, primit_arr, basis_arr, atoms_names, types_names, latt_param, types_arr, n_types = get_structure_from_pot_sprkkr(path_in, system_name) # get_structure_from_sys_sprkkr(path, system_name) <- frmo sys file outdated
     print(n_atoms)
     print(primit_arr)
     print(basis_arr)
@@ -448,24 +449,24 @@ def sprkkr_to_vampire_ucf(path, system_name, crop_thresholds, include_dmi=True, 
     print(latt_param)
 
     # write the .mat file
-    mag_moments_atoms, mag_moments_types = get_mag_moments(path, system_name, n_atoms, n_types, types_arr)
+    mag_moments_atoms, mag_moments_types = get_mag_moments(path_in, system_name, n_atoms, n_types, types_arr)
 
     # include anisotropy
     if include_anisotropy == True:
-        torques = get_torques(path, system_name, n_atoms, types_arr)
+        torques = get_torques(path_in, system_name, n_atoms, types_arr)
     else:
         torques = np.zeros((n_atoms,))
         print("anisotropy will *NOT* be included")
 
     print(mag_moments_types)
-    write_mat_file(path, system_name, mag_moments_types, types_names, torques)
+    write_mat_file(path_out, system_name, mag_moments_types, types_names, torques)
 
     # calculate the length of the effective lattice parameters
     latt_params = np.array( [np.sqrt(np.sum(np.power(primit_arr[i,:], 2))) for i in range(3)] )
     print(f"latt_params: {latt_params}")
 
     # write the input file with the correct lattice parameters
-    write_latt_params_for_input_file(path, latt_params)
+    write_latt_params_for_input_file(path_out, latt_params)
 
     print(atoms_names)
     #with open(f_exchange_in, 'r') as fr:
@@ -529,11 +530,11 @@ def sprkkr_to_vampire_ucf(path, system_name, crop_thresholds, include_dmi=True, 
 
     for crop_threshold in crop_thresholds:
         if crop_threshold >= 0:
-            ucf_crop(path, 'vampire.UCF', crop_threshold, save_file=True)
+            ucf_crop(path=path_out, file_name='vampire.UCF', threshold=crop_threshold)
 
 
 def main():
-    sprkkr_to_vampire_ucf(path='.', system_name='POSCAR', crop_thresholds=[0], \
+    sprkkr_to_vampire_ucf(path_in='.', system_name='POSCAR', crop_thresholds=[0], \
                           include_dmi=False, include_anisotropy=True)
 
 
