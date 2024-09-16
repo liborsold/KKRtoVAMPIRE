@@ -13,6 +13,14 @@ from os.path import exists
 import subprocess
 from copy import copy
 
+class Converter():
+    def __init__(self, path, system_name, include_dmi=False, include_anisotropy=True, crop_thresholds=[0]):
+        self.path = path
+        self.system_name = system_name
+        self.include_dmi = include_dmi
+        self.include_anisotropy = include_anisotropy
+        self.crop_thresholds = crop_thresholds
+
 # ========================== USER INPUT =============================
 
 # SPR-KKR calculation directory
