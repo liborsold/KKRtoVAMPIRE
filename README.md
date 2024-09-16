@@ -8,6 +8,6 @@ _If you find this package useful, please cite_ [Q. Guillet*, L. Vojáček* _et a
 
 See `./examples/KKR_to_VAMPIRE_example.ipynb` for the example of use.
 
-Needed files are: `seedname.pot_new`, `seedname_SCF.out`, `seedname_JXC_XCPLTEN_Jij.dat` and `seedname_JXC_XCPLTEN_Dij.dat`.
+Needed files are: `seedname.pot_new`, `seedname_SCF.out`, `seedname_JXC_XCPLTEN_Jij.dat` and `seedname_JXC_XCPLTEN_Dij.dat`, `POSCAR_TORQUE.out`.
 
 Specify if DMI and anisotropy should be included and if the interactions should be croppped. Tested on .pot file with  _FORMAT     9 (18.01.2019)_.
