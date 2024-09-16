@@ -21,19 +21,6 @@ class Converter():
         self.include_anisotropy = include_anisotropy
         self.crop_thresholds = crop_thresholds
 
-# ========================== USER INPUT =============================
-
-# SPR-KKR calculation directory
-path = "." #"H:/test_exchange_Fe_Co_Ni/Co/a_lit" #"H:/2D/Cr2Te3/bulk/sprkkr_imitating_experimental/test_structure"   #  "H:/SPR-KKR/bcc_Fe" # "H:/2D/Cr2Te3/bulk/sprkkr/PBE/NKTAB_1000" #  
-# the seed name in SPR-KKR (the name of the system)
-system_name =  "CONTCAR" #"POSCAR" # "Fe"   #
-
-include_dmi = False
-include_anisotropy = True
-
-crop_thresholds = [0] #[0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.10, 0.20, 0.30, 0.50] 0 #0.1    # meV; set value > 0 to perform the crop post-processing (via the ucf_crop_small_values_vampire.py script; creates a new file)
-
-# ===================================================================
 
 def ucf_crop(path='.', file_name='vampire.UCF', threshold=0.00, save_file=True, \
              convert_tensorial_to_isotropic=True, thresholds_in_fraction_of_total=True):
@@ -136,8 +123,6 @@ def get_torques(path, system_name, n_atoms, types_arr):
         torques_types[types_arr[i]-1] = torques_atoms[i]
     return torques_types
 
-
-
 def write_latt_params_for_input_file(path, latt_params):
     """Write part of the 'input' file for VAMPIRE containing the lattice parametres."""
     fwrite = f"{path}/input_latt-params"
@@ -146,7 +131,6 @@ def write_latt_params_for_input_file(path, latt_params):
         fw.write(f"dimensions:unit-cell-size-y = {latt_params[1]:.12f}\n")
         fw.write(f"dimensions:unit-cell-size-z = {latt_params[2]:.12f}\n")
     return 0
-
 
 def write_mat_file(path, system_name, mag_moments, elements, torques):
     """Write the .mat file for vampire, given the magnetic moments and types of elements."""
@@ -175,7 +159,6 @@ def write_mat_file(path, system_name, mag_moments, elements, torques):
                        )
             )
     print(".mat file written")
-
 
 def get_mag_moments(path, system_name, n_atoms, n_types, types_arr):
     """Parse magnetic moments from _SCF.out file."""
@@ -213,8 +196,6 @@ def get_mag_moments(path, system_name, n_atoms, n_types, types_arr):
     mag_moments_elements = [mag_moments_types[types_arr[i]-1] for i in range(n_atoms)]
     print(f"mag_moments obtained: {mag_moments_elements}")
     return mag_moments_elements, mag_moments_types
-
-
 
 def get_structure_from_sys_sprkkr(path, system_name):
     """From the SPR-KKR's .sys file get the unit cell, number of atoms and their basis vectors."""
@@ -278,7 +259,6 @@ def get_structure_from_sys_sprkkr(path, system_name):
 
     print(".sys file parsed")
     return n_atoms, primit_arr, basis_arr, elements_arr, latt_param
-
 
 def get_structure_from_pot_sprkkr(path, system_name):
     """From the SPR-KKR's .pot file get the unit cell, number of atoms and their basis vectors."""
@@ -455,7 +435,7 @@ def coerce_overflowing_atoms_to_unit_cell(basis_arr_reduced, df, primit_arr, lat
 
     return basis_arr_reduced, df
 
-def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotropy=True):
+def sprkkr_to_vampire_ucf(path, system_name, crop_thresholds, include_dmi=True, include_anisotropy=True):
     """Convert exchange and DMI from SPR-KKR into VAMPIRE UCF file."""
 
     meV = 1.602e-22  #J
@@ -562,7 +542,8 @@ def sprkkr_to_vampire_ucf(path, system_name, include_dmi=True, include_anisotrop
 
 
 def main():
-    sprkkr_to_vampire_ucf(path, system_name, include_dmi, include_anisotropy)
+    sprkkr_to_vampire_ucf(path='.', system_name='POSCAR', crop_thresholds=[0], \
+                          include_dmi=False, include_anisotropy=True)
 
 
 if __name__ == "__main__":
